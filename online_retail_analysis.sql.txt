@@ -1,0 +1,64 @@
+-- Online Retail Sales Analysis
+-- Dataset: Online Retail (Kaggle) | Tool: SQLite
+
+
+-- 1. Explore the data
+SELECT * FROM retail LIMIT 10;
+SELECT COUNT(*) FROM retail;
+
+
+-- 2. Clean the data: remove cancellations, invalid prices,
+--    postage/manual entries, and two bulk orders cancelled after the fact
+select InvoiceNo, Description, Quantity, UnitPrice, CustomerID
+from retail
+where abs(quantity) > 50000;
+
+DROP VIEW IF EXISTS sales;
+
+CREATE VIEW sales AS
+SELECT InvoiceNo, StockCode, Description, Quantity, UnitPrice,
+       CustomerID, Country,
+       Quantity * UnitPrice AS revenue
+FROM retail
+WHERE Quantity > 0
+  AND Quantity < 50000
+  AND UnitPrice > 0
+  AND InvoiceNo NOT LIKE 'C%'
+  AND StockCode NOT IN ('DOT', 'POST', 'M', 'D', 'BANK CHARGES', 'AMAZONFEE', 'CRUK')
+  AND Description NOT IN ('DOTCOM POSTAGE', 'POSTAGE', 'Manual')
+  AND InvoiceNo not in ('581483', '541431');
+
+
+-- Q1: Top 10 products by revenue
+select Description, 
+	sum(quantity) as units_sold,
+	round(sum(revenue), 2) as total_revenue
+from sales
+group by Description
+order by total_revenue DESC
+limit 10;
+
+
+-- Q2: Revenue by country
+select Country,
+	count(distinct InvoiceNo) as orders,
+	round(sum(revenue),  2) as total_revenue
+from sales 
+group by Country
+order by total_revenue DESC;
+
+
+-- Q3: Cancellation rate
+select round(100.0 * sum(case when invoiceno like 'C%' then 1 else 0 end)  / count(*), 2) as cancel_rate_pct
+from retail;
+
+
+-- Q4: Top 10 customers
+select customerid,
+	count(distinct invoiceno) as orders,
+	round(sum(revenue), 2) as total_spent
+from sales
+where CustomerID is not null and CustomerID <> ' '
+group by CustomerID
+order by total_spent DESC
+limit 10;
